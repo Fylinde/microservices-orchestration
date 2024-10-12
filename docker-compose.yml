@@ -1,0 +1,362 @@
+version: '3.7'
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Sylvian
+      POSTGRES_DB: address_service_db
+      PGUSER: postgres
+      PGPASSWORD: Sylvian
+      PGHOST: /var/run/postgresql
+     
+      SUPERUSER: fylinde_superuser
+      SUPERUSER_PASSWORD: SuperSecret
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ../db/init_postgres.sh:/docker-entrypoint-initdb.d/init_postgres.sh:ro
+
+    env_file:
+      - ..env
+    networks:
+      - ecommerce_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ../rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+     
+    networks:
+      - ecommerce_network
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.1
+    environment:
+      - discovery.type=single-node
+    ports: 
+      - "8200:9200"
+    networks:
+      - ecommerce_network
+
+
+  auth-service:
+    build: ../auth-service
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../auth-service/.env
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/auth_service_db"
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      USER_SERVICE_URL: http://user-service:8001/users
+    depends_on:
+      - db
+      - rabbitmq
+    volumes:
+      - ../auth-service:/app
+      - /etc/localtime:/etc/localtime:ro
+      - ../auth-service/app/migrations:/app/app/migrations
+      - auth_service_data:/app/data  # Persistent storage for auth service data
+    networks:
+      - ecommerce_network
+    cap_add:
+      - SYS_TIME
+
+
+  user-service:
+    build: ../user-service
+    ports:
+      - "8001:8001"
+    env_file:
+      - ../user-service/.env
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/user_service_db"
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - db
+      - rabbitmq
+    volumes:
+      - ../user-service:/app
+      - /etc/localtime:/etc/localtime:ro
+      - ../user-service/app/migrations:/app/app/migrations
+      - user_service_data:/app/data  # Persistent storage for user service data
+    networks:
+      - ecommerce_network
+    cap_add:
+      - SYS_TIME
+
+
+  product-service:
+    build: 
+      context: ../product-service
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/product_service_db"
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    ports:
+      - "8003:8003"
+    env_file:
+      - ../product-service/.env  
+    networks:
+      - ecommerce_network  
+    depends_on:
+      - db
+      - rabbitmq
+    volumes:
+      - ../product-service:/app
+      - /etc/localtime:/etc/localtime:ro
+      - ../product-service/app/migrations:/app/app/migrations
+      - product_service_data:/app/data  # Persistent storage for product service data
+    cap_add:
+      - SYS_TIME
+
+  order-service:
+    build: 
+      context: ../order-service
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/order_service_db"
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    ports:
+      - "8002:8002"
+    env_file:
+      - ../order-service/.env  
+    networks:
+      - ecommerce_network  
+    depends_on:
+      - db   
+      - rabbitmq
+    volumes:
+      - ../order-service:/app
+      - /etc/localtime:/etc/localtime:ro
+      - ../order-service/app/migrations:/app/app/migrations
+      - order_service_data:/app/data  # Persistent storage for order service data
+    command: ["sh", "start.sh"]
+    cap_add:
+      - SYS_TIME
+
+  chatbot-service:
+    build:
+      context: ../chatbot-service
+      dockerfile: Dockerfile
+    ports:
+      - "8004:8004"
+    depends_on:
+      - auth-service
+      - user-service
+      - order-service
+      - product-service  
+      - db
+      - rabbitmq  
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/  
+    networks:
+      - ecommerce_network  
+    volumes:
+      - ../chatbot-service:/app
+      - /etc/localtime:/etc/localtime:ro
+      - ../chatbot-service/app/migrations:/app/app/migrations
+      - chatbot_service_data:/app/data  # Persistent storage for chatbot service data
+    cap_add:
+      - SYS_TIME
+
+  category-service:
+    build: 
+      context: ../category-service
+      dockerfile: Dockerfile
+    ports:
+      - "8005:8005"  
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/category_service_db" 
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    depends_on: 
+      - db
+      - rabbitmq
+    volumes:
+      - ../category-service:/app 
+      - /etc/localtime:/etc/localtime:ro
+      - ../category-service/app/migrations:/app/app/migrations
+      - category_service_data:/app/data  # Persistent storage for category service data
+    networks:
+      - ecommerce_network   
+    cap_add:
+      - SYS_TIME   
+
+  recommendation-service:
+    build: 
+      context: ../recommendation-service
+      dockerfile: Dockerfile
+    ports:
+      - "8006:8006"
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/recommendation_service_db" 
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    depends_on: 
+      - db  
+      - rabbitmq
+    volumes:
+      - ../recommendation-service:/app 
+      - /etc/localtime:/etc/localtime:ro 
+      - ../recommendation-service/app/migrations:/app/app/migrations
+      - recommendation_service_data:/app/data  # Persistent storage for recommendation service data
+    networks:
+      - ecommerce_network 
+    cap_add:
+      - SYS_TIME  
+
+  marketplace:
+    build: 
+      context: ../marketplace
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    networks:
+      - ecommerce_network  
+            
+
+  address-service:
+    build: 
+      context: ../address-service
+      dockerfile: Dockerfile
+    ports:
+      - "8007:8007"
+    networks:
+      - ecommerce_network
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/address_service_db" 
+      HERE_MAPS_API_KEY: "XeyqiLeQdoOHRl8aM6qxkG1vBYy-uYt-5fuyv7lMg7Y"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    volumes:
+      - ../address-service:/app  
+      - /etc/localtime:/etc/localtime:ro
+      - ../address-service/app/migrations:/app/app/migrations
+      - address_service_data:/app/data  # Persistent storage for address service data
+    depends_on:
+      - db
+      - rabbitmq  
+    cap_add:
+      - SYS_TIME  
+
+  collaboration-service:
+    build: 
+      context: ../collaboration-service
+      dockerfile: Dockerfile
+    ports:
+      - "8008:8008"
+    networks:
+      - ecommerce_network
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/collaboration_service_db" 
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    volumes:
+      - ../collaboration-service:/app 
+      - /etc/localtime:/etc/localtime:ro 
+      - ../collaboration-service/app/migrations:/app/app/migrations
+      - collaboration_service_data:/app/data  # Persistent storage for collaboration service data
+    depends_on:
+      - db 
+      - rabbitmq
+    cap_add:
+      - SYS_TIME   
+
+  logistics-service:
+    build: 
+      context: ../logistics-service
+      dockerfile: Dockerfile
+    ports:
+      - "8009:8009"
+    networks:
+      - ecommerce_network
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/logistics_service_db" 
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    volumes:
+      - ../logistics-service:/app  
+      - /etc/localtime:/etc/localtime:ro
+      - ../logistics-service/app/migrations:/app/app/migrations
+      - logistics_service_data:/app/data  # Persistent storage for logistics service data
+    depends_on:
+      - db 
+      - rabbitmq       
+    cap_add:
+      - SYS_TIME
+
+
+
+  brand-service: 
+    build: 
+      context: ../brand-service
+      dockerfile: Dockerfile
+    ports:
+      - "8010:8010"
+    networks:
+      - ecommerce_network
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/brand_service_db" 
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    volumes:
+      - ../brand-service:/app  
+      - /etc/localtime:/etc/localtime:ro
+      - ../brand-service/app/migrations:/app/app/migrations
+      - brand_service_data:/app/data  # Persistent storage for logistics service data
+    depends_on:
+      - db 
+      - rabbitmq       
+    cap_add:
+      - SYS_TIME
+
+  search-service:
+    build: 
+      context: ../search-service
+      dockerfile: Dockerfile
+    ports:
+      - "8011:8011"
+    depends_on:
+      - elasticsearch
+    networks:
+      - ecommerce_network
+    volumes:
+      - ../search-service:/app  
+      - /etc/localtime:/etc/localtime:ro
+      - ../search-service/app/migrations:/app/app/migrations
+      - search_service_data:/app/data  # Persistent storage for logistics service data
+
+networks:
+  ecommerce_network:
+    driver: bridge
+
+volumes:
+  db-data:
+  rabbitmq_data:
+  auth_service_data:
+  user_service_data:
+  product_service_data:
+  order_service_data:
+  chatbot_service_data:
+  category_service_data:
+  recommendation_service_data:
+  address_service_data:
+  collaboration_service_data:
+  logistics_service_data:
+  brand_service_data:
+  search_service_data:

@@ -1,0 +1,7 @@
+version: '3'
+services:
+  search-service:
+    build: 
+      context: ../search-service
+      dockerfile: Dockerfile
+    command: /bin/sh -c "echo 'Skipping search-service build'"
