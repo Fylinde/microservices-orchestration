@@ -18,7 +18,7 @@ services:
       - ../db/init_postgres.sh:/docker-entrypoint-initdb.d/init_postgres.sh:ro
 
     env_file:
-      - ..env
+      - ./.env
     networks:
       - ecommerce_network
     healthcheck:
