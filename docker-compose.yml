@@ -3,6 +3,7 @@ version: '3.7'
 services:
   db:
     image: postgres:16
+    container_name: fylinde_db_1
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: Sylvian
@@ -14,7 +15,7 @@ services:
       SUPERUSER: fylinde_superuser
       SUPERUSER_PASSWORD: SuperSecret
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - fylinde_db-data:/var/lib/postgresql/data
       - ../db/init_postgres.sh:/docker-entrypoint-initdb.d/init_postgres.sh:ro
 
     env_file:
@@ -31,11 +32,12 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management
+    container_name: fylinde_rabbitmq_1
     ports:
       - "5672:5672"
       - "15672:15672"
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+      - fylinde_rabbitmq_data:/var/lib/rabbitmq
       - ../rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
     environment:
       RABBITMQ_DEFAULT_USER: guest
@@ -52,6 +54,7 @@ services:
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.10.1
+    container_name: fylinde_elasticsearch_1
     environment:
       - discovery.type=single-node
     ports: 
@@ -62,6 +65,7 @@ services:
 
   auth-service:
     build: ../auth-service
+    container_name: fylinde_auth-service_1
     ports:
       - "8000:8000"
     env_file:
@@ -77,7 +81,7 @@ services:
       - ../auth-service:/app
       - /etc/localtime:/etc/localtime:ro
       - ../auth-service/app/migrations:/app/app/migrations
-      - auth_service_data:/app/data  # Persistent storage for auth service data
+      - fylinde_auth_service_data:/app/data  # Persistent storage for auth service data
     networks:
       - ecommerce_network
     cap_add:
@@ -86,6 +90,7 @@ services:
 
   user-service:
     build: ../user-service
+    container_name: fylinde_user-service_1
     ports:
       - "8001:8001"
     env_file:
@@ -100,7 +105,7 @@ services:
       - ../user-service:/app
       - /etc/localtime:/etc/localtime:ro
       - ../user-service/app/migrations:/app/app/migrations
-      - user_service_data:/app/data  # Persistent storage for user service data
+      - fylinde_user_service_data:/app/data  # Persistent storage for user service data
     networks:
       - ecommerce_network
     cap_add:
@@ -110,6 +115,7 @@ services:
   product-service:
     build: 
       context: ../product-service
+    container_name: fylinde_product-service_1
     environment:
       DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/product_service_db"
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
@@ -126,13 +132,14 @@ services:
       - ../product-service:/app
       - /etc/localtime:/etc/localtime:ro
       - ../product-service/app/migrations:/app/app/migrations
-      - product_service_data:/app/data  # Persistent storage for product service data
+      - fylinde_product_service_data:/app/data  # Persistent storage for product service data
     cap_add:
       - SYS_TIME
 
   order-service:
     build: 
       context: ../order-service
+    container_name: fylinde_order-service_1
     environment:
       DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/order_service_db"
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
@@ -149,7 +156,7 @@ services:
       - ../order-service:/app
       - /etc/localtime:/etc/localtime:ro
       - ../order-service/app/migrations:/app/app/migrations
-      - order_service_data:/app/data  # Persistent storage for order service data
+      - fylinde_order_service_data:/app/data  # Persistent storage for order service data
     command: ["sh", "start.sh"]
     cap_add:
       - SYS_TIME
@@ -158,6 +165,7 @@ services:
     build:
       context: ../chatbot-service
       dockerfile: Dockerfile
+    container_name: fylinde_chatbot-service_1  
     ports:
       - "8004:8004"
     depends_on:
@@ -175,7 +183,7 @@ services:
       - ../chatbot-service:/app
       - /etc/localtime:/etc/localtime:ro
       - ../chatbot-service/app/migrations:/app/app/migrations
-      - chatbot_service_data:/app/data  # Persistent storage for chatbot service data
+      - fylinde_chatbot_service_data:/app/data  # Persistent storage for chatbot service data
     cap_add:
       - SYS_TIME
 
@@ -183,6 +191,7 @@ services:
     build: 
       context: ../category-service
       dockerfile: Dockerfile
+    container_name: fylinde_category-service_1  
     ports:
       - "8005:8005"  
     environment:
@@ -195,7 +204,7 @@ services:
       - ../category-service:/app 
       - /etc/localtime:/etc/localtime:ro
       - ../category-service/app/migrations:/app/app/migrations
-      - category_service_data:/app/data  # Persistent storage for category service data
+      - fylinde_category_service_data:/app/data  # Persistent storage for category service data
     networks:
       - ecommerce_network   
     cap_add:
@@ -205,6 +214,7 @@ services:
     build: 
       context: ../recommendation-service
       dockerfile: Dockerfile
+    container_name: fylinde_recommendation-service_1  
     ports:
       - "8006:8006"
     environment:
@@ -217,7 +227,7 @@ services:
       - ../recommendation-service:/app 
       - /etc/localtime:/etc/localtime:ro 
       - ../recommendation-service/app/migrations:/app/app/migrations
-      - recommendation_service_data:/app/data  # Persistent storage for recommendation service data
+      - fylinde_recommendation_service_data:/app/data  # Persistent storage for recommendation service data
     networks:
       - ecommerce_network 
     cap_add:
@@ -227,6 +237,7 @@ services:
     build: 
       context: ../marketplace
       dockerfile: Dockerfile
+    container_name: fylinde_marketplace-service_1  
     ports:
       - "3000:3000"
     networks:
@@ -237,6 +248,7 @@ services:
     build: 
       context: ../address-service
       dockerfile: Dockerfile
+    container_name: fylinde_address-service_1  
     ports:
       - "8007:8007"
     networks:
@@ -244,13 +256,13 @@ services:
     environment:
       DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/address_service_db" 
       HERE_MAPS_API_KEY: "XeyqiLeQdoOHRl8aM6qxkG1vBYy-uYt-5fuyv7lMg7Y"
-      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_HOST: fylinde_rabbitmq
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
     volumes:
       - ../address-service:/app  
       - /etc/localtime:/etc/localtime:ro
       - ../address-service/app/migrations:/app/app/migrations
-      - address_service_data:/app/data  # Persistent storage for address service data
+      - fylinde_address_service_data:/app/data  # Persistent storage for address service data
     depends_on:
       - db
       - rabbitmq  
@@ -261,6 +273,7 @@ services:
     build: 
       context: ../collaboration-service
       dockerfile: Dockerfile
+    container_name: fylinde_collaboration-service_1  
     ports:
       - "8008:8008"
     networks:
@@ -272,7 +285,7 @@ services:
       - ../collaboration-service:/app 
       - /etc/localtime:/etc/localtime:ro 
       - ../collaboration-service/app/migrations:/app/app/migrations
-      - collaboration_service_data:/app/data  # Persistent storage for collaboration service data
+      - fylinde_collaboration_service_data:/app/data  # Persistent storage for collaboration service data
     depends_on:
       - db 
       - rabbitmq
@@ -283,6 +296,7 @@ services:
     build: 
       context: ../logistics-service
       dockerfile: Dockerfile
+    container_name: fylinde_logistics-service_1  
     ports:
       - "8009:8009"
     networks:
@@ -294,7 +308,7 @@ services:
       - ../logistics-service:/app  
       - /etc/localtime:/etc/localtime:ro
       - ../logistics-service/app/migrations:/app/app/migrations
-      - logistics_service_data:/app/data  # Persistent storage for logistics service data
+      - fylinde_logistics_service_data:/app/data  # Persistent storage for logistics service data
     depends_on:
       - db 
       - rabbitmq       
@@ -307,6 +321,7 @@ services:
     build: 
       context: ../brand-service
       dockerfile: Dockerfile
+    container_name: fylinde_brand-service_1  
     ports:
       - "8010:8010"
     networks:
@@ -318,7 +333,7 @@ services:
       - ../brand-service:/app  
       - /etc/localtime:/etc/localtime:ro
       - ../brand-service/app/migrations:/app/app/migrations
-      - brand_service_data:/app/data  # Persistent storage for logistics service data
+      - fylinde_brand_service_data:/app/data  # Persistent storage for logistics service data
     depends_on:
       - db 
       - rabbitmq       
@@ -329,6 +344,7 @@ services:
     build: 
       context: ../search-service
       dockerfile: Dockerfile
+    container_name: fylinde_search-service_1  
     ports:
       - "8011:8011"
     depends_on:
@@ -339,24 +355,71 @@ services:
       - ../search-service:/app  
       - /etc/localtime:/etc/localtime:ro
       - ../search-service/app/migrations:/app/app/migrations
-      - search_service_data:/app/data  # Persistent storage for logistics service data
+      - fylinde_search_service_data:/app/data  # Persistent storage for logistics service data
+  
+  vendor-service:
+    build:
+      context: ../vendor-service
+      dockerfile: Dockerfile
+    container_name: fylinde_vendor-service_1
+    ports:
+      - "8009:8012"
+    networks:
+      - ecommerce_network
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/vendor_service_db"
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    volumes:
+      - /home/fylinde/fylinde/vendor-service:/app
+      - /etc/localtime:/etc/localtime:ro
+      - /home/fylinde/fylinde/vendor-service/app/migrations:/app/app/migrations
+      - fylinde_vendor_service_data:/app/data # Persistent storage for logistics service data
+    depends_on:
+      - db
+      - rabbitmq
+    cap_add:
+      - SYS_TIME  
+
+  payment-service:
+    build:
+      context: ../payment-service
+      dockerfile: Dockerfile
+    container_name: fylinde_payment-service_1
+    ports:
+      - "8013:8013"
+    networks:
+      - ecommerce_network
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/payment_service_db"
+    volumes:
+      - /home/fylinde/fylinde/payment-service:/app
+      - /etc/localtime:/etc/localtime:ro
+      - /home/fylinde/fylinde/payment-service/app/migrations:/app/app/migrations
+      - fylinde_payment_service_data:/app/data # Persistent storage for logistics service data
+    depends_on:
+      - db
+    cap_add:
+      - SYS_TIME  
+
 
 networks:
   ecommerce_network:
     driver: bridge
 
 volumes:
-  db-data:
-  rabbitmq_data:
-  auth_service_data:
-  user_service_data:
-  product_service_data:
-  order_service_data:
-  chatbot_service_data:
-  category_service_data:
-  recommendation_service_data:
-  address_service_data:
-  collaboration_service_data:
-  logistics_service_data:
-  brand_service_data:
-  search_service_data:
+  fylinde_db-data:
+  fylinde_rabbitmq_data:
+  fylinde_auth_service_data:
+  fylinde_user_service_data:
+  fylinde_product_service_data:
+  fylinde_order_service_data:
+  fylinde_chatbot_service_data:
+  fylinde_category_service_data:
+  fylinde_recommendation_service_data:
+  fylinde_address_service_data:
+  fylinde_collaboration_service_data:
+  fylinde_logistics_service_data:
+  fylinde_brand_service_data:
+  fylinde_search_service_data:
+  fylinde_vendor_service_data:
+  fylinde_payment_service_data:
