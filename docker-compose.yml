@@ -11,13 +11,15 @@ services:
       PGUSER: postgres
       PGPASSWORD: Sylvian
       PGHOST: /var/run/postgresql
+      
      
       SUPERUSER: fylinde_superuser
       SUPERUSER_PASSWORD: SuperSecret
     volumes:
       - fylinde_db-data:/var/lib/postgresql/data
       - ../db/init_postgres.sh:/docker-entrypoint-initdb.d/init_postgres.sh:ro
-
+    ports:
+      - "5433:5433"
     env_file:
       - ./.env
     networks:
@@ -242,6 +244,15 @@ services:
       - "3000:3000"
     networks:
       - ecommerce_network  
+    volumes:
+      - ../marketplace:/app:rw  # Correct the path relative to microservices-orchestration
+      - /app/node_modules  # Exclude node_modules from being overridden
+    environment:
+      - CHOKIDAR_USEPOLLING=true  # For hot-reloading in Docker
+ 
+    command: yarn start    # Use the React dev server to enable live reloading
+
+
             
 
   address-service:
@@ -363,7 +374,7 @@ services:
       dockerfile: Dockerfile
     container_name: fylinde_vendor-service_1
     ports:
-      - "8009:8012"
+      - "8012:8012"
     networks:
       - ecommerce_network
     environment:
@@ -390,6 +401,7 @@ services:
     networks:
       - ecommerce_network
     environment:
+      AUTH_SERVICE_URL: "http://auth-service:8000"  # Pointing to auth-service on port 8000
       DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/payment_service_db"
     volumes:
       - /home/fylinde/fylinde/payment-service:/app
@@ -398,8 +410,57 @@ services:
       - fylinde_payment_service_data:/app/data # Persistent storage for logistics service data
     depends_on:
       - db
+      - rabbitmq
     cap_add:
       - SYS_TIME  
+
+
+  tryon-service:
+    build:
+      context: ../tryon-service
+      dockerfile: Dockerfile
+    container_name: fylinde_tryon-service_1
+    ports:
+      - "8014:8014"
+    networks:
+      - ecommerce_network
+    environment:
+      #AUTH_SERVICE_URL: "http://auth-service:8000"  # Pointing to auth-service on port 8000
+      DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/tryon_service_db"
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/    
+    volumes:
+      - /home/fylinde/fylinde/tryon-service:/app
+      - /etc/localtime:/etc/localtime:ro
+      - /home/fylinde/fylinde/tryon-service/app/migrations:/app/app/migrations
+      - fylinde_tryon_service_data:/app/data # Persistent storage for logistics service data
+    depends_on:
+      - db
+      - rabbitmq
+    cap_add:
+      - SYS_TIME   
+
+  shop-service:
+    build:
+      context: ../shop-service
+      dockerfile: Dockerfile
+    container_name: fylinde_shop-service_1
+    ports:
+      - "8015:8015"
+    networks:
+      - ecommerce_network
+    environment:
+      DATABASE_URL: "postgresql+psycopg2://postgres:Sylvian@db:5433/shop_service_db"
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    volumes:
+      - /home/fylinde/fylinde/shop-service:/app
+      - /etc/localtime:/etc/localtime:ro
+      - /home/fylinde/fylinde/shop-service/app/migrations:/app/app/migrations
+      - fylinde_shop_service_data:/app/data # Persistent storage for logistics service data
+    depends_on:
+      - db
+      - rabbitmq
+    cap_add:
+      - SYS_TIME      
 
 
 networks:
@@ -423,3 +484,5 @@ volumes:
   fylinde_search_service_data:
   fylinde_vendor_service_data:
   fylinde_payment_service_data:
+  fylinde_tryon_service_data:
+  fylinde_shop_service_data:
