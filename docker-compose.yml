@@ -1,4 +1,4 @@
-version: '3.7'
+
 
 services:
   db:
@@ -17,7 +17,6 @@ services:
       SUPERUSER_PASSWORD: SuperSecret
     volumes:
       - fylinde_db-data:/var/lib/postgresql/data
-      - ../db/init_postgres.sh:/docker-entrypoint-initdb.d/init_postgres.sh:ro
     ports:
       - "5433:5433"
     env_file:
@@ -40,7 +39,6 @@ services:
       - "15672:15672"
     volumes:
       - fylinde_rabbitmq_data:/var/lib/rabbitmq
-      - ../rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
